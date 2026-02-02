@@ -1,0 +1,860 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Due Dilly - Your AI Diligence Agent</title>
+    <meta name="description" content="Give your AI agent read-only access to your files. It builds your data room, validates everything, anticipates questions, and keeps your records synchronized—automatically.">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        border: "hsl(var(--border))",
+                        input: "hsl(var(--input))",
+                        ring: "hsl(var(--ring))",
+                        background: "hsl(var(--background))",
+                        foreground: "hsl(var(--foreground))",
+                        primary: {
+                            DEFAULT: "hsl(var(--primary))",
+                            foreground: "hsl(var(--primary-foreground))",
+                        },
+                        accent: {
+                            DEFAULT: "hsl(var(--accent))",
+                            foreground: "hsl(var(--accent-foreground))",
+                        },
+                        destructive: {
+                            DEFAULT: "hsl(var(--destructive))",
+                            foreground: "hsl(var(--destructive-foreground))",
+                        },
+                        muted: {
+                            DEFAULT: "hsl(var(--muted))",
+                            foreground: "hsl(var(--muted-foreground))",
+                        },
+                        card: {
+                            DEFAULT: "hsl(var(--card))",
+                            foreground: "hsl(var(--card-foreground))",
+                        },
+                    },
+                }
+            }
+        }
+    </script>
+
+    <style type="text/css">
+        :root {
+            /* Due Dilly brand colors from logo */
+            --primary: 227 100% 59%;        /* #2D5BFF - vibrant blue */
+            --primary-foreground: 0 0% 100%;
+            --accent: 260 87% 60%;          /* #7B3FF2 - purple */
+            --accent-foreground: 0 0% 100%;
+            --destructive: 0 84% 60%;
+            --destructive-foreground: 0 0% 100%;
+            --background: 0 0% 100%;
+            --foreground: 222 47% 11%;      /* #0F172A - slate-900 */
+            --muted: 210 40% 96%;
+            --muted-foreground: 215 16% 47%;
+            --card: 0 0% 100%;
+            --card-foreground: 222 47% 11%;
+            --border: 214 32% 91%;
+            --input: 214 32% 91%;
+            --ring: 227 100% 59%;
+        }
+
+        html {
+            scroll-behavior: smooth;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        }
+
+        .app-header {
+            position: sticky;
+            top: 0;
+            z-index: 50;
+            background: white;
+            border-bottom: 1px solid hsl(var(--border));
+        }
+
+        .app-header__content {
+            max-width: 1280px;
+            margin: 0 auto;
+            padding: 0.75rem 1.5rem;
+        }
+
+        /* Coming Soon Hover Effect */
+        .upload-container {
+            position: relative;
+        }
+
+        .upload-original-content {
+            transition: opacity 0.3s ease, filter 0.3s ease;
+        }
+
+        .upload-coming-soon {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: rgba(0, 0, 0, 0.8);
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+            border-radius: 0.75rem;
+            z-index: 10;
+        }
+
+        .upload-container:hover .upload-original-content {
+            opacity: 0.3;
+            filter: grayscale(100%);
+        }
+
+        .upload-container:hover .upload-coming-soon {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        /* Email capture modal */
+        .email-modal-backdrop {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(4px);
+            z-index: 100;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+        }
+
+        .email-modal-backdrop.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .email-modal {
+            background: white;
+            border-radius: 1rem;
+            padding: 2.5rem;
+            max-width: 28rem;
+            width: 90%;
+            box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25);
+            transform: translateY(20px) scale(0.95);
+            transition: transform 0.3s ease;
+        }
+
+        .email-modal-backdrop.active .email-modal {
+            transform: translateY(0) scale(1);
+        }
+
+        .email-modal input[type="email"] {
+            width: 100%;
+            padding: 0.75rem 1rem;
+            border: 2px solid hsl(var(--border));
+            border-radius: 0.5rem;
+            font-size: 1rem;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        .email-modal input[type="email"]:focus {
+            border-color: hsl(var(--primary));
+        }
+
+        /* Toast notification */
+        .toast {
+            position: fixed;
+            top: 5rem;
+            left: 50%;
+            transform: translateX(-50%) translateY(-20px);
+            background: hsl(var(--foreground));
+            color: white;
+            padding: 0.75rem 1.5rem;
+            border-radius: 0.5rem;
+            font-size: 0.875rem;
+            font-weight: 500;
+            z-index: 200;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease, transform 0.3s ease;
+        }
+
+        .toast.show {
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
+        }
+
+        /* Success checkmark animation */
+        @keyframes checkmark-draw {
+            to { stroke-dashoffset: 0; }
+        }
+
+        .success-checkmark {
+            stroke-dasharray: 30;
+            stroke-dashoffset: 30;
+            animation: checkmark-draw 0.4s ease forwards 0.2s;
+        }
+
+        /* Mobile menu */
+        .mobile-menu {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease;
+        }
+
+        .mobile-menu.open {
+            max-height: 20rem;
+        }
+    </style>
+</head>
+
+<body class="bg-background text-foreground">
+    <!-- Toast notification -->
+    <div id="toast" class="toast"></div>
+
+    <!-- Email Capture Modal -->
+    <div id="emailModal" class="email-modal-backdrop" onclick="if(event.target===this)closeEmailModal()">
+        <div class="email-modal">
+            <div id="emailFormState">
+                <div class="text-center mb-6">
+                    <div class="w-14 h-14 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center mx-auto mb-4 shadow-lg">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>
+                    </div>
+                    <h3 class="text-2xl font-bold text-foreground mb-2">Get Early Access</h3>
+                    <p class="text-muted-foreground">Be the first to know when Due Dilly launches. We'll notify you as soon as it's ready.</p>
+                </div>
+                <form id="emailForm" onsubmit="return handleEmailSubmit(event)">
+                    <input type="email" id="emailInput" placeholder="Enter your email for early access" required>
+                    <button type="submit" class="w-full mt-3 inline-flex items-center justify-center gap-2 bg-gradient-to-r from-primary to-accent text-white h-11 rounded-md px-6 font-medium transition-all shadow-md hover:shadow-lg hover:scale-[1.02]">
+                        Get Early Access
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+                    </button>
+                </form>
+            </div>
+            <div id="emailSuccessState" class="text-center" style="display:none">
+                <div class="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-4">
+                    <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+                        <circle cx="16" cy="16" r="15" stroke="#22c55e" stroke-width="2" fill="none"/>
+                        <path class="success-checkmark" d="M10 16 L14 20 L22 12" stroke="#22c55e" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+                    </svg>
+                </div>
+                <h3 class="text-2xl font-bold text-foreground mb-2">You're on the list!</h3>
+                <p class="text-muted-foreground mb-6">We'll reach out as soon as Due Dilly is ready for you.</p>
+                <button onclick="closeEmailModal()" class="text-sm font-medium text-primary hover:underline">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Header -->
+    <header class="app-header">
+        <div class="app-header__content">
+            <div class="flex justify-between items-center w-full">
+                <div class="flex items-center gap-6">
+                    <!-- Logo -->
+                    <h1 class="text-xl font-semibold">
+                        <a href="/" class="flex items-center gap-2">
+                            <svg width="245" height="56" viewBox="0 0 350 80" xmlns="http://www.w3.org/2000/svg">
+                                <defs>
+                                    <linearGradient id="primaryGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                                        <stop offset="0%" style="stop-color:#2D5BFF;stop-opacity:1" />
+                                        <stop offset="100%" style="stop-color:#7B3FF2;stop-opacity:1" />
+                                    </linearGradient>
+                                    <linearGradient id="accentGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                                        <stop offset="0%" style="stop-color:#3B82F6;stop-opacity:1" />
+                                        <stop offset="100%" style="stop-color:#8B5CF6;stop-opacity:1" />
+                                    </linearGradient>
+                                </defs>
+                                <g transform="translate(15, 15)">
+                                    <path d="M 0,5 L 15,5 L 18,0 L 28,0 L 31,5 L 45,5" fill="url(#accentGradient)" opacity="0.6"/>
+                                    <rect x="0" y="5" width="45" height="30" rx="2" fill="url(#primaryGradient)"/>
+                                    <rect x="2" y="8" width="41" height="3" rx="1" fill="white" opacity="0.2"/>
+                                    <circle cx="22.5" cy="22" r="8" fill="white" opacity="0.9"/>
+                                    <path d="M 18,22 L 21,25 L 27,19" stroke="#2D5BFF" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+                                </g>
+                                <text x="70" y="42" font-family="Arial, sans-serif" font-size="28" font-weight="900" fill="#0F172A" letter-spacing="1">DUEDILLY</text>
+                            </svg>
+                        </a>
+                    </h1>
+
+                    <!-- Desktop Navigation -->
+                    <nav class="hidden md:flex items-center gap-1">
+                        <a class="px-3 py-2 text-sm font-medium rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors" href="#use-cases">Use Cases</a>
+                        <a class="px-3 py-2 text-sm font-medium rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors" href="#document-types">Document Types</a>
+                        <a class="px-3 py-2 text-sm font-medium rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors" href="#blog" onclick="event.preventDefault();showToast('Blog coming soon!')">Blog</a>
+                    </nav>
+                </div>
+
+                <!-- Auth Links -->
+                <nav class="hidden md:flex items-center gap-3">
+                    <a class="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors" href="#" onclick="event.preventDefault();openEmailModal()">Sign in</a>
+                    <a class="inline-flex items-center justify-center px-4 py-2 text-sm font-medium rounded-md bg-gradient-to-r from-primary to-accent text-white hover:shadow-lg hover:scale-105 transition-all shadow-sm" href="#" onclick="event.preventDefault();openEmailModal()">Get Started</a>
+                </nav>
+
+                <!-- Mobile Menu Button -->
+                <button id="mobileMenuBtn" class="md:hidden p-2 text-muted-foreground hover:text-foreground" onclick="toggleMobileMenu()">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="4" x2="20" y1="12" y2="12"/>
+                        <line x1="4" x2="20" y1="6" y2="6"/>
+                        <line x1="4" x2="20" y1="18" y2="18"/>
+                    </svg>
+                </button>
+            </div>
+
+            <!-- Mobile Menu -->
+            <nav id="mobileMenu" class="mobile-menu md:hidden">
+                <div class="flex flex-col gap-1 pt-4 pb-2 border-t border-border mt-3">
+                    <a class="px-3 py-2 text-sm font-medium rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors" href="#use-cases" onclick="closeMobileMenu()">Use Cases</a>
+                    <a class="px-3 py-2 text-sm font-medium rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors" href="#document-types" onclick="closeMobileMenu()">Document Types</a>
+                    <a class="px-3 py-2 text-sm font-medium rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors" href="#blog" onclick="event.preventDefault();closeMobileMenu();showToast('Blog coming soon!')">Blog</a>
+                    <a class="px-3 py-2 text-sm font-medium rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors" href="#" onclick="event.preventDefault();closeMobileMenu();openEmailModal()">Sign in</a>
+                    <a class="mt-2 inline-flex items-center justify-center px-4 py-2 text-sm font-medium rounded-md bg-gradient-to-r from-primary to-accent text-white shadow-sm" href="#" onclick="event.preventDefault();closeMobileMenu();openEmailModal()">Get Started</a>
+                </div>
+            </nav>
+        </div>
+    </header>
+
+    <main class="min-h-screen bg-background">
+        <!-- Hero Section -->
+        <section class="container mx-auto px-4 py-16 md:py-24 relative">
+            <div class="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-accent/5 pointer-events-none"></div>
+            <div class="relative z-10">
+            <div class="max-w-4xl mx-auto text-center mb-16">
+                <h1 class="text-4xl md:text-6xl font-bold text-foreground mb-6">
+                    Introducing Due Dilly
+                </h1>
+
+                <p class="text-lg md:text-xl text-muted-foreground mb-8">
+                    Give it read-only access to your files and records. Due Dilly builds your data room <strong>right</strong>, validates everything with you, anticipates questions from your counterparty, and keeps everything in sync automatically.
+                </p>
+
+                <!-- Stats -->
+                <div class="flex flex-wrap items-center justify-center gap-8 mb-12">
+                    <div class="flex items-center gap-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5 text-primary">
+                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                            <polyline points="14 2 14 8 20 8"></polyline>
+                        </svg>
+                        <span class="text-sm text-muted-foreground">
+                            <span class="font-semibold text-foreground">Automatic</span> organization
+                        </span>
+                    </div>
+
+                    <div class="flex items-center gap-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5 text-primary">
+                            <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path>
+                            <circle cx="9" cy="7" r="4"></circle>
+                            <path d="M22 21v-2a4 4 0 0 0-3-3.87"></path>
+                            <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                        </svg>
+                        <span class="text-sm text-muted-foreground">
+                            <span class="font-semibold text-foreground">Real-time</span> synchronization
+                        </span>
+                    </div>
+
+                    <div class="flex items-center gap-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5 text-primary">
+                            <circle cx="12" cy="12" r="10"></circle>
+                            <polyline points="12 6 12 12 16 14"></polyline>
+                        </svg>
+                        <span class="text-sm text-muted-foreground">
+                            <span class="font-semibold text-foreground">Always</span> up to date
+                        </span>
+                    </div>
+                </div>
+
+                <!-- Upload Section -->
+                <div class="max-w-2xl mx-auto">
+                    <div class="bg-card text-card-foreground rounded-xl shadow-sm border border-border p-8 upload-container">
+                        <div class="upload-original-content">
+                            <label for="file-upload" class="block cursor-pointer">
+                                <div class="border-dashed border-2 border-muted-foreground/30 rounded-xl p-12 transition-all">
+                                    <div class="flex flex-col items-center gap-4">
+                                        <div class="w-16 h-16 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center shadow-lg">
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-8 h-8">
+                                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                                                <polyline points="14 2 14 8 20 8"></polyline>
+                                                <line x1="12" x2="12" y1="18" y2="12"></line>
+                                                <line x1="9" x2="15" y1="15" y2="15"></line>
+                                            </svg>
+                                        </div>
+                                        <div class="text-center">
+                                            <p class="text-base font-medium text-foreground mb-1">
+                                                Connect your documents folder
+                                            </p>
+                                            <p class="text-sm text-muted-foreground">
+                                                Or upload files directly (PDF, DOCX, XLSX up to 50MB)
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </label>
+                            <input type="file" id="file-upload" class="hidden" multiple accept=".pdf,.docx,.xlsx">
+
+                            <div class="mt-4">
+                                <button class="w-full inline-flex items-center justify-center gap-2 bg-gradient-to-r from-primary to-accent text-white h-10 rounded-md px-6 font-medium transition-all shadow-md">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-4 h-4">
+                                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                                        <polyline points="17 8 12 3 7 8"></polyline>
+                                        <line x1="12" x2="3" y1="3" y2="15"></line>
+                                    </svg>
+                                    Connect & Start
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Early Access Overlay (replaces Coming Soon) -->
+                        <div class="upload-coming-soon" onclick="openEmailModal()">
+                            <div class="text-center px-6">
+                                <div class="w-14 h-14 rounded-full bg-white/20 flex items-center justify-center mx-auto mb-4">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>
+                                </div>
+                                <p class="text-2xl md:text-3xl font-bold text-white mb-2">
+                                    Get Early Access
+                                </p>
+                                <p class="text-base md:text-lg text-white/80">
+                                    Enter your email to be first in line
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            </div>
+        </section>
+
+        <!-- How It Works Section -->
+        <section id="use-cases" class="py-12 md:py-16 bg-muted/50">
+            <div class="container mx-auto px-4">
+                <h2 class="text-3xl md:text-4xl font-bold text-foreground mb-12 text-center">
+                    How It Works
+                </h2>
+
+                <div class="max-w-5xl mx-auto grid md:grid-cols-3 gap-8">
+                    <!-- Step 1 -->
+                    <div class="bg-card text-card-foreground rounded-xl shadow-sm p-8 border border-border hover:border-primary/50 transition-colors">
+                        <div class="w-12 h-12 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center mb-4 shadow-md">
+                            <span class="text-2xl font-bold text-white">1</span>
+                        </div>
+                        <h3 class="text-xl font-semibold text-foreground mb-3">
+                            Grant Read-Only Access
+                        </h3>
+                        <p class="text-muted-foreground">
+                            Connect your documents folder, cap table, financials, and KPI dashboard. Your agent monitors for updates but never modifies your source files.
+                        </p>
+                    </div>
+
+                    <!-- Step 2 -->
+                    <div class="bg-card text-card-foreground rounded-xl shadow-sm p-8 border border-border hover:border-primary/50 transition-colors">
+                        <div class="w-12 h-12 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center mb-4 shadow-md">
+                            <span class="text-2xl font-bold text-white">2</span>
+                        </div>
+                        <h3 class="text-xl font-semibold text-foreground mb-3">
+                            Your Agent Builds the Data Room
+                        </h3>
+                        <p class="text-muted-foreground">
+                            AI automatically organizes documents, validates completeness, anticipates investor questions, and generates missing documents on the spot.
+                        </p>
+                    </div>
+
+                    <!-- Step 3 -->
+                    <div class="bg-card text-card-foreground rounded-xl shadow-sm p-8 border border-border hover:border-primary/50 transition-colors">
+                        <div class="w-12 h-12 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center mb-4 shadow-md">
+                            <span class="text-2xl font-bold text-white">3</span>
+                        </div>
+                        <h3 class="text-xl font-semibold text-foreground mb-3">
+                            Showcase Your Business
+                        </h3>
+                        <p class="text-muted-foreground">
+                            Share a live, always up-to-date data room that syncs with your latest metrics, news, and documentation. Diligence becomes a showcase, not an interrogation.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Manifesto Section -->
+        <section id="manifesto" class="py-16 md:py-24 bg-card">
+            <div class="max-w-6xl mx-auto px-6 md:px-12">
+                <!-- Hero Manifesto -->
+                <div class="text-center mb-16">
+                    <h2 class="text-5xl md:text-7xl font-bold text-foreground mb-6 leading-tight">
+                        <strong>Diligence should showcase your business.</strong>
+                    </h2>
+                    <p class="text-3xl md:text-5xl text-muted-foreground italic">
+                        <em>Not interrogate it</em>
+                    </p>
+                </div>
+
+                <!-- The Problem We See -->
+                <div class="max-w-4xl mx-auto space-y-8 mb-16">
+                    <h3 class="text-3xl md:text-4xl font-bold text-foreground mb-8">
+                        A Better Way
+                    </h3>
+
+                    <p class="text-lg md:text-xl text-foreground leading-relaxed">
+                        Most diligence tools are built for interrogation. Upload a file. Answer a question. Upload another file. Answer another question. The process feels adversarial because it treats your business like a suspect instead of an opportunity.
+                    </p>
+
+                    <p class="text-lg md:text-xl text-foreground leading-relaxed">
+                        Due Dilly takes a different approach. Give your AI agent read-only access to your key records—cap table, financials, legal documents, KPI dashboard, company updates. It doesn't just store files. It understands your business, anticipates what investors will ask, validates that everything is in order, and keeps your data room synchronized with your actual business operations.
+                    </p>
+
+                    <p class="text-lg md:text-xl text-foreground leading-relaxed">
+                        The result is a living data room that makes you look prepared, organized, and transparent. When investors see your metrics updated in real-time, your cap table always current, and your documents complete before they even ask—that's confidence. That's a showcase.
+                    </p>
+                </div>
+
+                <!-- Stats Grid -->
+                <div class="grid md:grid-cols-3 gap-8 mb-16">
+                    <div class="bg-gradient-to-br from-primary/5 to-accent/5 rounded-xl p-8 text-center shadow-sm border border-primary/20">
+                        <div class="text-4xl md:text-5xl font-bold bg-gradient-to-br from-primary to-accent bg-clip-text text-transparent mb-2">10 minutes</div>
+                        <div class="text-muted-foreground">To set up your data room</div>
+                    </div>
+                    <div class="bg-gradient-to-br from-primary/5 to-accent/5 rounded-xl p-8 text-center shadow-sm border border-primary/20">
+                        <div class="text-4xl md:text-5xl font-bold bg-gradient-to-br from-primary to-accent bg-clip-text text-transparent mb-2">Always</div>
+                        <div class="text-muted-foreground">Up to date, automatically</div>
+                    </div>
+                    <div class="bg-gradient-to-br from-primary/5 to-accent/5 rounded-xl p-8 text-center shadow-sm border border-primary/20">
+                        <div class="text-4xl md:text-5xl font-bold bg-gradient-to-br from-primary to-accent bg-clip-text text-transparent mb-2">Zero</div>
+                        <div class="text-muted-foreground">Back-and-forth requests</div>
+                    </div>
+                </div>
+
+                <!-- Pull Quote -->
+                <blockquote class="border-l-4 border-primary pl-8 my-12 relative before:absolute before:left-0 before:top-0 before:bottom-0 before:w-1 before:bg-gradient-to-b before:from-primary before:to-accent">
+                    <p class="text-3xl md:text-4xl font-bold italic text-foreground leading-relaxed">
+                        "The best diligence isn't about answering questions. It's about never being asked them in the first place."
+                    </p>
+                </blockquote>
+            </div>
+        </section>
+
+        <!-- Divider -->
+        <div class="w-24 h-1 bg-gradient-to-r from-primary to-accent rounded-full mx-auto my-8 shadow-md"></div>
+
+        <!-- What We Believe Section -->
+        <section class="py-12 md:py-16 bg-card">
+            <div class="max-w-5xl mx-auto px-6 md:px-12">
+                <h2 class="text-4xl md:text-5xl lg:text-6xl font-bold text-foreground tracking-tight mb-10 text-center">
+                    How It Works Behind the Scenes
+                </h2>
+
+                <div class="space-y-8">
+                    <!-- Belief 1 -->
+                    <div class="flex gap-6 items-start">
+                        <div class="flex-shrink-0 w-12 h-12 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center shadow-md">
+                            <span class="text-xl font-bold text-white">1</span>
+                        </div>
+                        <div>
+                            <h3 class="text-2xl md:text-3xl font-semibold text-foreground mb-3">
+                                Read-only access means your files stay yours
+                            </h3>
+                            <p class="text-lg text-muted-foreground leading-relaxed">
+                                Your AI agent connects to your Google Drive, Dropbox, or accounting software with read-only permissions. It can see and analyze your documents, but it can never modify, delete, or move your original files. Your data stays where it is, under your control.
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- Belief 2 -->
+                    <div class="flex gap-6 items-start">
+                        <div class="flex-shrink-0 w-12 h-12 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center shadow-md">
+                            <span class="text-xl font-bold text-white">2</span>
+                        </div>
+                        <div>
+                            <h3 class="text-2xl md:text-3xl font-semibold text-foreground mb-3">
+                                Automatic synchronization with key records
+                            </h3>
+                            <p class="text-lg text-muted-foreground leading-relaxed">
+                                Connect your cap table (Carta, Pulley), financial dashboard (QuickBooks, Xero), and KPI tracker. Your data room automatically reflects your latest metrics, ownership structure, and financial performance—no manual updates required.
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- Belief 3 -->
+                    <div class="flex gap-6 items-start">
+                        <div class="flex-shrink-0 w-12 h-12 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center shadow-md">
+                            <span class="text-xl font-bold text-white">3</span>
+                        </div>
+                        <div>
+                            <h3 class="text-2xl md:text-3xl font-semibold text-foreground mb-3">
+                                AI anticipates questions and generates answers
+                            </h3>
+                            <p class="text-lg text-muted-foreground leading-relaxed">
+                                By analyzing your documents and comparing them to typical diligence checklists, your agent predicts what investors will ask. It can generate summaries, create missing documents (like cap table rollforwards), and flag potential concerns before anyone else sees them.
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- Belief 4 -->
+                    <div class="flex gap-6 items-start">
+                        <div class="flex-shrink-0 w-12 h-12 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center shadow-md">
+                            <span class="text-xl font-bold text-white">4</span>
+                        </div>
+                        <div>
+                            <h3 class="text-2xl md:text-3xl font-semibold text-foreground mb-3">
+                                Verification catches issues before investors do
+                            </h3>
+                            <p class="text-lg text-muted-foreground leading-relaxed">
+                                Your agent cross-references documents for consistency. It checks that your cap table matches your shareholder agreements, that your revenue matches your bank statements, and that all contracts have the required signatures. Fix issues privately, before they become red flags.
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- Belief 5 -->
+                    <div class="flex gap-6 items-start">
+                        <div class="flex-shrink-0 w-12 h-12 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center shadow-md">
+                            <span class="text-xl font-bold text-white">5</span>
+                        </div>
+                        <div>
+                            <h3 class="text-2xl md:text-3xl font-semibold text-foreground mb-3">
+                                A living data room that evolves with your business
+                            </h3>
+                            <p class="text-lg text-muted-foreground leading-relaxed">
+                                Unlike static document repositories, your Due Dilly data room stays current. Close a new customer? It's in the metrics. Update your hiring plan? It's in the deck. Sign a new contract? It's validated and categorized. Your data room is always fundraise-ready.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Pull Quote -->
+                <blockquote class="border-l-4 border-primary pl-8 my-12 relative before:absolute before:left-0 before:top-0 before:bottom-0 before:w-1 before:bg-gradient-to-b before:from-primary before:to-accent mt-16">
+                    <p class="text-3xl md:text-4xl font-bold italic text-foreground leading-relaxed">
+                        "When your data room answers questions before they're asked, you're not just prepared. You're impressive."
+                    </p>
+                </blockquote>
+            </div>
+        </section>
+
+        <!-- Why We Built This Section -->
+        <section class="py-12 md:py-16 bg-background">
+            <div class="max-w-4xl mx-auto px-6 md:px-12">
+                <h2 class="text-4xl md:text-5xl font-bold text-foreground mb-10 text-center">
+                    Built for Simplicity
+                </h2>
+
+                <div class="space-y-8 text-lg md:text-xl text-foreground leading-relaxed">
+                    <p>
+                        Diligence doesn't have to be painful. The technology exists to make it simple—read-only access to your existing systems, AI that understands business documents, real-time synchronization that keeps everything current.
+                    </p>
+
+                    <p>
+                        We built Due Dilly because fundraising shouldn't feel like an audit. You're not trying to hide anything. You're trying to showcase your business to people who might become your partners. The process should make you look good, not make you scramble.
+                    </p>
+
+                    <p>
+                        So we made it simple. Connect your files. Let your AI agent do the work. Share a data room that makes you look like the professional you are. That's it.
+                    </p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Our Commitment Section -->
+        <section id="document-types" class="py-12 md:py-16 bg-card">
+            <div class="max-w-4xl mx-auto text-center px-6 md:px-12">
+                <h2 class="text-4xl md:text-6xl font-bold text-foreground mb-8 tracking-tight">
+                    How We Handle Your Data
+                </h2>
+
+                <div class="space-y-6 mb-10">
+                    <p class="text-2xl md:text-3xl text-foreground leading-relaxed font-semibold">
+                        Read-only means read-only. Your agent never modifies your source files.
+                    </p>
+
+                    <p class="text-2xl md:text-3xl text-foreground leading-relaxed font-semibold">
+                        All analysis happens with local AI models. Your documents never leave your control.
+                    </p>
+
+                    <p class="text-2xl md:text-3xl text-foreground leading-relaxed font-semibold">
+                        You decide who sees what. Share the full room or just specific sections.
+                    </p>
+
+                    <p class="text-xl md:text-2xl text-muted-foreground leading-relaxed mt-8">
+                        Your business deserves tools that respect your privacy and amplify your professionalism.
+                    </p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Final Quote Section -->
+        <section class="py-16 md:py-24 bg-background">
+            <div class="max-w-4xl mx-auto text-center px-6 md:px-12">
+                <div class="space-y-8">
+                    <p class="text-4xl md:text-6xl font-bold text-foreground leading-tight">
+                        <strong>"Stop explaining yourself. Start showcasing your business."</strong>
+                    </p>
+                </div>
+
+                <div class="mt-16 space-y-4">
+                    <p class="text-2xl md:text-4xl font-bold text-foreground">
+                        Due Dilly
+                    </p>
+                    <p class="text-xl md:text-2xl text-muted-foreground">
+                        Your AI diligence agent.
+                    </p>
+                    <p class="text-xl md:text-2xl text-muted-foreground">
+                        Read-only access. Automatic organization. Always up to date.
+                    </p>
+                    <p class="text-xl md:text-2xl text-muted-foreground">
+                        Diligence that makes you look good.
+                    </p>
+                </div>
+
+                <div class="mt-12">
+                    <a href="#" onclick="event.preventDefault();openEmailModal()" class="inline-flex items-center justify-center gap-2 bg-gradient-to-r from-primary to-accent text-white hover:shadow-xl hover:scale-105 h-12 rounded-md px-8 text-lg font-medium transition-all shadow-lg">
+                        Connect Your Files
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5">
+                            <path d="M5 12h14"/>
+                            <path d="m12 5 7 7-7 7"/>
+                        </svg>
+                    </a>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-muted/30 border-t border-border py-12">
+        <div class="container mx-auto px-4">
+            <div class="grid md:grid-cols-3 gap-8 mb-8">
+                <!-- Brand Column -->
+                <div class="md:col-span-2">
+                    <div class="flex items-center gap-2 mb-4">
+                        <svg width="180" height="42" viewBox="0 0 350 80" xmlns="http://www.w3.org/2000/svg">
+                            <defs>
+                                <linearGradient id="primaryGradientFooter" x1="0%" y1="0%" x2="100%" y2="100%">
+                                    <stop offset="0%" style="stop-color:#2D5BFF;stop-opacity:1" />
+                                    <stop offset="100%" style="stop-color:#7B3FF2;stop-opacity:1" />
+                                </linearGradient>
+                                <linearGradient id="accentGradientFooter" x1="0%" y1="0%" x2="100%" y2="100%">
+                                    <stop offset="0%" style="stop-color:#3B82F6;stop-opacity:1" />
+                                    <stop offset="100%" style="stop-color:#8B5CF6;stop-opacity:1" />
+                                </linearGradient>
+                            </defs>
+                            <g transform="translate(15, 15)">
+                                <path d="M 0,5 L 15,5 L 18,0 L 28,0 L 31,5 L 45,5" fill="url(#accentGradientFooter)" opacity="0.6"/>
+                                <rect x="0" y="5" width="45" height="30" rx="2" fill="url(#primaryGradientFooter)"/>
+                                <rect x="2" y="8" width="41" height="3" rx="1" fill="white" opacity="0.2"/>
+                                <circle cx="22.5" cy="22" r="8" fill="white" opacity="0.9"/>
+                                <path d="M 18,22 L 21,25 L 27,19" stroke="#2D5BFF" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+                            </g>
+                            <text x="70" y="42" font-family="Arial, sans-serif" font-size="28" font-weight="900" fill="#0F172A" letter-spacing="1">DUEDILLY</text>
+                        </svg>
+                    </div>
+                    <p class="text-muted-foreground mb-4 max-w-md">
+                        Your AI diligence agent. Grant read-only access, get an always-updated data room that showcases your business.
+                    </p>
+                </div>
+
+                <!-- Resources Column -->
+                <div>
+                    <h3 class="font-semibold text-foreground mb-3">Resources</h3>
+                    <ul class="space-y-2">
+                        <li><a href="#use-cases" class="text-sm text-muted-foreground hover:text-primary transition-colors">Use Cases</a></li>
+                        <li><a href="#manifesto" class="text-sm text-muted-foreground hover:text-primary transition-colors">Our Manifesto</a></li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Bottom Bar -->
+            <div class="border-t border-border pt-8 flex flex-col md:flex-row justify-between items-center gap-4">
+                <p class="text-sm text-muted-foreground">
+                    &copy; 2026 Due Dilly. All rights reserved.
+                </p>
+                <div class="flex gap-6">
+                    <span class="text-sm text-muted-foreground">Privacy Policy</span>
+                    <span class="text-sm text-muted-foreground">Terms of Service</span>
+                    <span class="text-sm text-muted-foreground">Contact</span>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        // Email Capture Modal
+        function openEmailModal() {
+            document.getElementById('emailFormState').style.display = '';
+            document.getElementById('emailSuccessState').style.display = 'none';
+            document.getElementById('emailInput').value = '';
+            document.getElementById('emailModal').classList.add('active');
+            setTimeout(() => document.getElementById('emailInput').focus(), 300);
+        }
+
+        function closeEmailModal() {
+            document.getElementById('emailModal').classList.remove('active');
+        }
+
+        function handleEmailSubmit(e) {
+            e.preventDefault();
+            const email = document.getElementById('emailInput').value.trim();
+            if (!email) return false;
+
+            // Save to localStorage
+            let emails = [];
+            try {
+                emails = JSON.parse(localStorage.getItem('duedilly_emails') || '[]');
+            } catch (_) {}
+            emails.push({ email: email, timestamp: new Date().toISOString() });
+            localStorage.setItem('duedilly_emails', JSON.stringify(emails));
+
+            // Show success state
+            document.getElementById('emailFormState').style.display = 'none';
+            document.getElementById('emailSuccessState').style.display = '';
+
+            return false;
+        }
+
+        // Close modal on Escape key
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') closeEmailModal();
+        });
+
+        // Toast notification
+        function showToast(message) {
+            var toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.classList.add('show');
+            setTimeout(function() { toast.classList.remove('show'); }, 2500);
+        }
+
+        // Mobile menu toggle
+        function toggleMobileMenu() {
+            document.getElementById('mobileMenu').classList.toggle('open');
+        }
+
+        function closeMobileMenu() {
+            document.getElementById('mobileMenu').classList.remove('open');
+        }
+
+        // Email export utility (accessible via console or ?admin=true)
+        window.exportEmails = function() {
+            var emails = [];
+            try {
+                emails = JSON.parse(localStorage.getItem('duedilly_emails') || '[]');
+            } catch (_) { }
+            if (emails.length === 0) {
+                console.log('No emails captured yet.');
+                return;
+            }
+            var csv = 'email,timestamp\n' + emails.map(function(e) {
+                return '"' + e.email.replace(/"/g, '""') + '","' + e.timestamp + '"';
+            }).join('\n');
+            var blob = new Blob([csv], { type: 'text/csv' });
+            var url = URL.createObjectURL(blob);
+            var a = document.createElement('a');
+            a.href = url;
+            a.download = 'duedilly_emails_' + new Date().toISOString().slice(0,10) + '.csv';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            console.log('Exported ' + emails.length + ' email(s) to CSV.');
+        };
+    </script>
+</body>
+</html>
