@@ -794,17 +794,35 @@
             const email = document.getElementById('emailInput').value.trim();
             if (!email) return false;
 
-            // Save to localStorage
-            let emails = [];
-            try {
-                emails = JSON.parse(localStorage.getItem('duedilly_emails') || '[]');
-            } catch (_) {}
-            emails.push({ email: email, timestamp: new Date().toISOString() });
-            localStorage.setItem('duedilly_emails', JSON.stringify(emails));
+            const submitBtn = document.querySelector('#emailForm button[type="submit"]');
+            const originalText = submitBtn.innerHTML;
+            submitBtn.innerHTML = 'Submitting...';
+            submitBtn.disabled = true;
 
-            // Show success state
-            document.getElementById('emailFormState').style.display = 'none';
-            document.getElementById('emailSuccessState').style.display = '';
+            // Send to Google Apps Script
+            fetch('https://script.google.com/macros/s/AKfycbw2m55FQZT70Vo25FCrXa8TbLnx3OCJrGA7s7T5my6hT6AqV1xziBiTfhUeg4Afc3UE/exec', {
+                method: 'POST',
+                mode: 'no-cors',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email: email })
+            }).then(function() {
+                // Also save to localStorage as backup
+                let emails = [];
+                try { emails = JSON.parse(localStorage.getItem('duedilly_emails') || '[]'); } catch (_) {}
+                emails.push({ email: email, timestamp: new Date().toISOString() });
+                localStorage.setItem('duedilly_emails', JSON.stringify(emails));
+
+                // Show success state
+                document.getElementById('emailFormState').style.display = 'none';
+                document.getElementById('emailSuccessState').style.display = '';
+            }).catch(function() {
+                // Still show success (no-cors doesn't return response)
+                document.getElementById('emailFormState').style.display = 'none';
+                document.getElementById('emailSuccessState').style.display = '';
+            }).finally(function() {
+                submitBtn.innerHTML = originalText;
+                submitBtn.disabled = false;
+            });
 
             return false;
         }
