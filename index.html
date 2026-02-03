@@ -800,11 +800,12 @@
             submitBtn.disabled = true;
 
             // Send to Google Apps Script
+            var formData = new FormData();
+            formData.append('email', email);
             fetch('https://script.google.com/macros/s/AKfycbw2m55FQZT70Vo25FCrXa8TbLnx3OCJrGA7s7T5my6hT6AqV1xziBiTfhUeg4Afc3UE/exec', {
                 method: 'POST',
                 mode: 'no-cors',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email: email })
+                body: formData
             }).then(function() {
                 // Also save to localStorage as backup
                 let emails = [];
